@@ -10,7 +10,6 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, onValue, remove, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-  // ── PASTE YOUR FIREBASE CONFIG HERE ──
   const firebaseConfig = {
     apiKey: "AIzaSyBUPuuNsDFeUm_R2SMRlGk8QR2U_W5mMYk",
     authDomain: "sdt-house-system.firebaseapp.com",
@@ -29,7 +28,6 @@
   let studyBookings = {};
   let timerIntervals = {};
 
-  // ── ROUTING ──
   function showView(view) {
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     document.getElementById("view-" + view).classList.add("active");
@@ -40,93 +38,54 @@
     else if (view === "study") { backBtn.style.display = "flex"; title.textContent = "Study Room"; }
   }
 
-  // ── LAUNDRY ──
   function listenLaundry() {
-    onValue(ref(db, "laundry"), snap => {
-      laundryData = snap.val() || {};
-      renderLaundry();
-    });
+    onValue(ref(db, "laundry"), snap => { laundryData = snap.val() || {}; renderLaundry(); });
   }
 
   function formatDoneTime(startTime, durationMinutes) {
-    const doneMs = startTime + durationMinutes * 60 * 1000;
-    return new Date(doneMs).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return new Date(startTime + durationMinutes * 60 * 1000).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   }
 
   function formatTime(secs) {
-    const m = Math.floor(secs / 60).toString().padStart(2, "0");
-    const s = (secs % 60).toString().padStart(2, "0");
-    return m + ":" + s;
+    return Math.floor(secs/60).toString().padStart(2,"0") + ":" + (secs%60).toString().padStart(2,"0");
   }
 
   function renderLaundry() {
-    // Home screen badge
-    const keys = ["washers_0","washers_1","washers_2","dryers_0","dryers_1","dryers_2"];
     let freeW = 0, freeD = 0;
     ["washers_0","washers_1","washers_2"].forEach(k => { if (!laundryData[k]?.startTime) freeW++; });
     ["dryers_0","dryers_1","dryers_2"].forEach(k => { if (!laundryData[k]?.startTime) freeD++; });
     const badge = document.getElementById("laundry-availability");
     if (badge) {
       const free = freeW + freeD;
-      badge.textContent = free === 6 ? "All machines free" : free === 0 ? "All machines in use" : `${freeW} washer${freeW!==1?"s":""}, ${freeD} dryer${freeD!==1?"s":""} free`;
+      badge.textContent = free===6?"All machines free":free===0?"All machines in use":`${freeW} washer${freeW!==1?"s":""}, ${freeD} dryer${freeD!==1?"s":""} free`;
       badge.className = "home-availability " + (free===0?"avail-none":free===6?"avail-all":"avail-some");
     }
-
-    // Render floor plan tiles
-    // Layout: dryers left col (0=bottom,1=mid,2=top), washers right col (0=bottom,1=mid,2=top)
     const tiles = [
-      { key:"dryers_2",  label:"Dryer 3",  col:"left",  row:0 },
-      { key:"washers_2", label:"Washer 3", col:"right", row:0 },
-      { key:"dryers_1",  label:"Dryer 2",  col:"left",  row:1 },
-      { key:"washers_1", label:"Washer 2", col:"right", row:1 },
-      { key:"dryers_0",  label:"Dryer 1",  col:"left",  row:2 },
-      { key:"washers_0", label:"Washer 1", col:"right", row:2 },
+      {key:"dryers_2",label:"Dryer 3"},{key:"washers_2",label:"Washer 3"},
+      {key:"dryers_1",label:"Dryer 2"},{key:"washers_1",label:"Washer 2"},
+      {key:"dryers_0",label:"Dryer 1"},{key:"washers_0",label:"Washer 1"},
     ];
-
     const grid = document.getElementById("floor-grid");
     if (!grid) return;
     grid.innerHTML = "";
-
-    tiles.forEach(({ key, label, col, row }) => {
+    tiles.forEach(({key,label}) => {
       const machine = laundryData[key] || {};
       const inUse = !!machine.startTime;
       const durMins = machine.durationMinutes || 45;
-
       let timerContent = "";
       if (inUse) {
-        const elapsed = Math.floor((Date.now() - machine.startTime) / 1000);
-        const totalSecs = durMins * 60;
-        const remaining = Math.max(0, totalSecs - elapsed);
-        const pct = Math.min(100, (elapsed / totalSecs) * 100);
-        const circumference = 2 * Math.PI * 22;
-        const offset = circumference * (1 - pct / 100);
-        const alerting = remaining <= ALERT_MINUTES * 60;
-        const strokeColor = alerting ? "#C9A0A0" : "#7A9E7E";
-        const doneTime = formatDoneTime(machine.startTime, durMins);
-        timerContent = `
-          <div class="tile-timer">
-            <svg width="52" height="52" viewBox="0 0 52 52">
-              <circle cx="26" cy="26" r="22" fill="none" stroke="#F0E0E0" stroke-width="4"/>
-              <circle cx="26" cy="26" r="22" fill="none" stroke="${strokeColor}" stroke-width="4"
-                stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
-                transform="rotate(-90 26 26)" id="ring-${key}"/>
-            </svg>
-            <span class="tile-countdown" id="timer-${key}">${formatTime(remaining)}</span>
-          </div>
-          <div class="tile-by">${machine.name}</div>
-          <div class="tile-done">Done at ${doneTime}</div>`;
-        startTileTimer(key, machine.startTime, durMins);
+        const elapsed = Math.floor((Date.now()-machine.startTime)/1000);
+        const totalSecs = durMins*60;
+        const remaining = Math.max(0,totalSecs-elapsed);
+        const pct = Math.min(100,(elapsed/totalSecs)*100);
+        const C = 2*Math.PI*22;
+        const strokeColor = remaining<=ALERT_MINUTES*60?"#C9A0A0":"#7A9E7E";
+        timerContent = `<div class="tile-timer"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="#F0E0E0" stroke-width="4"/><circle cx="26" cy="26" r="22" fill="none" stroke="${strokeColor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pct/100)}" transform="rotate(-90 26 26)" id="ring-${key}"/></svg><span class="tile-countdown" id="timer-${key}">${formatTime(remaining)}</span></div><div class="tile-by">${machine.name}</div><div class="tile-done">Done at ${formatDoneTime(machine.startTime,durMins)}</div>`;
+        startTileTimer(key,machine.startTime,durMins);
       }
-
       const tile = document.createElement("div");
-      tile.className = `floor-tile ${inUse ? "tile-busy" : "tile-free"} col-${col} row-${row}`;
-      tile.innerHTML = `
-        <div class="tile-label">${label}</div>
-        ${timerContent}
-        <button class="tile-btn ${inUse?"tile-btn-ghost":"tile-btn-primary"}"
-          onclick="${inUse ? `window.releaseMachine('${key}')` : `window.claimMachine('${key}','${label}')`}">
-          ${inUse ? "Done" : "Use"}
-        </button>`;
+      tile.className = `floor-tile ${inUse?"tile-busy":"tile-free"}`;
+      tile.innerHTML = `<div class="tile-label">${label}</div>${timerContent}<button class="tile-btn ${inUse?"tile-btn-ghost":"tile-btn-primary"}" onclick="${inUse?`window.releaseMachine('${key}')`:`window.claimMachine('${key}','${label}')`}">${inUse?"Done":"Use"}</button>`;
       grid.appendChild(tile);
     });
   }
@@ -134,271 +93,238 @@
   function startTileTimer(key, startTime, durationMinutes) {
     if (timerIntervals[key]) clearInterval(timerIntervals[key]);
     timerIntervals[key] = setInterval(() => {
-      const el = document.getElementById("timer-" + key);
-      const ring = document.getElementById("ring-" + key);
+      const el = document.getElementById("timer-"+key);
+      const ring = document.getElementById("ring-"+key);
       if (!el) { clearInterval(timerIntervals[key]); return; }
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      const totalSecs = durationMinutes * 60;
-      const remaining = Math.max(0, totalSecs - elapsed);
+      const elapsed = Math.floor((Date.now()-startTime)/1000);
+      const totalSecs = durationMinutes*60;
+      const remaining = Math.max(0,totalSecs-elapsed);
       el.textContent = formatTime(remaining);
-      if (ring) {
-        const circumference = 2 * Math.PI * 22;
-        const pct = Math.min(100, (elapsed / totalSecs) * 100);
-        ring.setAttribute("stroke-dashoffset", circumference * (1 - pct / 100));
-        ring.setAttribute("stroke", remaining <= ALERT_MINUTES * 60 ? "#C9A0A0" : "#7A9E7E");
-      }
-      if (remaining === 0) clearInterval(timerIntervals[key]);
-    }, 1000);
+      if (ring) { const C=2*Math.PI*22; ring.setAttribute("stroke-dashoffset",C*(1-Math.min(100,(elapsed/totalSecs)*100)/100)); ring.setAttribute("stroke",remaining<=ALERT_MINUTES*60?"#C9A0A0":"#7A9E7E"); }
+      if (remaining===0) clearInterval(timerIntervals[key]);
+    },1000);
   }
 
   window.claimMachine = async (key, machineName) => {
     const name = prompt(`Your name for ${machineName}:`);
-    if (!name || !name.trim()) return;
+    if (!name||!name.trim()) return;
     const durInput = prompt(`How long is your cycle? (minutes, default 45):`, "45");
-    const durationMinutes = Math.max(1, parseInt(durInput) || 45);
-    await set(ref(db, "laundry/" + key), { name: name.trim(), startTime: Date.now(), durationMinutes });
+    const durationMinutes = Math.max(1, parseInt(durInput)||45);
+    await set(ref(db,"laundry/"+key), {name:name.trim(), startTime:Date.now(), durationMinutes});
   };
 
   window.releaseMachine = async (key) => {
     if (!confirm("Mark this machine as done?")) return;
-    await remove(ref(db, "laundry/" + key));
+    await remove(ref(db,"laundry/"+key));
     if (timerIntervals[key]) { clearInterval(timerIntervals[key]); delete timerIntervals[key]; }
   };
 
-  // ── STUDY ROOM ──
-  function listenStudy() {
-    onValue(ref(db, "study"), snap => {
-      studyBookings = snap.val() || {};
-      renderStudy();
-    });
+  let studyNote = null;
+  function listenNote() {
+    onValue(ref(db,"studyNote"), snap => { studyNote=snap.val(); renderNote(); });
   }
+  function renderNote() {
+    const el = document.getElementById("study-note-bar");
+    if (!el) return;
+    if (studyNote&&studyNote.text) { el.style.display="flex"; document.getElementById("study-note-text").textContent=studyNote.text; }
+    else { el.style.display="none"; }
+  }
+  window.openNoteModal = () => { document.getElementById("note-modal").classList.add("open"); document.getElementById("note-input").value=studyNote?studyNote.text:""; };
+  window.closeNoteModal = () => { document.getElementById("note-modal").classList.remove("open"); };
+  window.saveNote = async () => { const text=document.getElementById("note-input").value.trim(); if(!text){await remove(ref(db,"studyNote"));}else{await set(ref(db,"studyNote"),{text});} window.closeNoteModal(); };
+  window.clearNote = async () => { await remove(ref(db,"studyNote")); window.closeNoteModal(); };
 
-  function renderStudy() {
+  window.quickCheckin = async () => {
+    const name = prompt("Your name:");
+    if (!name||!name.trim()) return;
     const now = Date.now();
-    const active = Object.entries(studyBookings).filter(([,b]) => b.startMs <= now && b.endMs > now);
-    const statusBar = document.getElementById("study-status-bar");
-    const studyBadge = document.getElementById("study-availability");
+    await push(ref(db,"study"), {name:name.trim(), startMs:now, endMs:now+60*60*1000, checkin:true});
+  };
 
-    if (active.length > 0) {
-      const names = active.map(([,b]) => b.name).join(", ");
-      if (statusBar) { statusBar.className = "status-bar busy"; statusBar.innerHTML = `<span class="status-dot dot-busy"></span> In use by <strong>${names}</strong>`; }
-      if (studyBadge) { studyBadge.textContent = `In use by ${names}`; studyBadge.className = "home-availability avail-none"; }
-    } else {
-      if (statusBar) { statusBar.className = "status-bar free"; statusBar.innerHTML = `<span class="status-dot dot-free"></span> Room is open`; }
-      if (studyBadge) { studyBadge.textContent = "Room is open"; studyBadge.className = "home-availability avail-all"; }
-    }
+  let studyBookings2 = {};
+  let calendarView="week", calendarDayOffset=0, calendarWeekOffset=0;
+  const BOOKING_COLORS=["#C9A0A0","#A0B8C9","#A0C9A8","#C9BBA0","#B8A0C9","#C9A0BC","#A0C9C2"];
+  const nameColorMap={};let colorIndex=0;
+  function getColor(name){if(!nameColorMap[name]){nameColorMap[name]=BOOKING_COLORS[colorIndex%BOOKING_COLORS.length];colorIndex++;}return nameColorMap[name];}
+  const HOUR_START=7,HOUR_END=23,HOUR_HEIGHT=48;
 
-    const container = document.getElementById("study-bookings-list");
-    if (!container) return;
-    container.innerHTML = "";
-    const relevant = Object.entries(studyBookings)
-      .filter(([,b]) => b.endMs > now)
-      .sort((a,b) => a[1].startMs - b[1].startMs);
+  function listenStudy() {
+    onValue(ref(db,"study"), snap => { studyBookings=snap.val()||{}; renderStudyStatus(); renderCalendar(); });
+  }
 
-    if (relevant.length === 0) {
-      container.innerHTML = `<p class="empty-state">No upcoming bookings. Be the first to reserve!</p>`;
-    } else {
-      relevant.forEach(([key, b]) => {
-        const isActive = b.startMs <= now;
-        const div = document.createElement("div");
-        div.className = "booking-row " + (isActive ? "booking-active" : "");
-        div.innerHTML = `
-          <div class="booking-info">
-            <span class="booking-name">${b.name}</span>
-            <span class="booking-time">${formatBookingTime(b.startMs, b.endMs)}</span>
-          </div>
-          <button class="btn-icon" onclick="window.deleteBooking('${key}')">✕</button>`;
-        container.appendChild(div);
+  function renderStudyStatus() {
+    const now=Date.now();
+    const active=Object.entries(studyBookings).filter(([,b])=>b.startMs<=now&&b.endMs>now);
+    const statusBar=document.getElementById("study-status-bar");
+    const badge=document.getElementById("study-availability");
+    if(active.length>0){const names=active.map(([,b])=>b.name).join(", ");if(statusBar){statusBar.className="status-bar busy";statusBar.innerHTML=`<span class="status-dot dot-busy"></span> In use by <strong>${names}</strong>`;}if(badge){badge.textContent=`In use by ${names}`;badge.className="home-availability avail-none";}}
+    else{if(statusBar){statusBar.className="status-bar free";statusBar.innerHTML=`<span class="status-dot dot-free"></span> Room is open`;}if(badge){badge.textContent="Room is open";badge.className="home-availability avail-all";}}
+  }
+
+  function renderCalendar(){const cal=document.getElementById("calendar-body");if(!cal)return;cal.innerHTML="";if(calendarView==="week")renderWeek(cal);else renderDay(cal);}
+
+  function getWeekDays(offset){const days=[];const today=new Date();today.setHours(0,0,0,0);const s=new Date(today);s.setDate(today.getDate()-today.getDay()+offset*7);for(let i=0;i<7;i++){const d=new Date(s);d.setDate(s.getDate()+i);days.push(d);}return days;}
+
+  function renderWeek(container){
+    const days=getWeekDays(calendarWeekOffset);const today=new Date();today.setHours(0,0,0,0);
+    const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const lbl=document.getElementById("cal-nav-label");if(lbl)lbl.textContent=`${months[days[0].getMonth()]} ${days[0].getDate()} – ${months[days[6].getMonth()]} ${days[6].getDate()}`;
+    const totalH=HOUR_END-HOUR_START,gridH=totalH*HOUR_HEIGHT;
+    const wrapper=document.createElement("div");wrapper.style.cssText="display:flex;overflow-x:auto;";
+    const timeCol=document.createElement("div");timeCol.style.cssText=`flex-shrink:0;width:36px;padding-top:28px;`;
+    for(let h=HOUR_START;h<HOUR_END;h++){const l=document.createElement("div");l.style.cssText=`height:${HOUR_HEIGHT}px;font-size:9px;color:var(--muted);text-align:right;padding-right:4px;line-height:1;`;l.textContent=h===12?"12p":h>12?`${h-12}p`:`${h}a`;timeCol.appendChild(l);}
+    wrapper.appendChild(timeCol);
+    days.forEach(day=>{
+      const isToday=day.getTime()===today.getTime();
+      const dn=["Su","Mo","Tu","We","Th","Fr","Sa"];
+      const col=document.createElement("div");col.style.cssText=`flex:1;min-width:40px;border-left:1px solid var(--border);`;
+      const hdr=document.createElement("div");hdr.style.cssText=`text-align:center;padding:4px 0 6px;font-size:10px;color:${isToday?"var(--plum)":"var(--muted)"};font-weight:${isToday?"600":"400"};`;
+      hdr.innerHTML=`${dn[day.getDay()]}<br><span style="font-size:12px;font-weight:600;${isToday?"background:var(--plum);color:#fff;border-radius:50%;display:inline-block;width:20px;height:20px;line-height:20px;":"color:var(--text);"}">${day.getDate()}</span>`;
+      col.appendChild(hdr);
+      const grid=document.createElement("div");grid.style.cssText=`position:relative;height:${gridH}px;`;
+      for(let h=0;h<totalH;h++){const line=document.createElement("div");line.style.cssText=`position:absolute;top:${h*HOUR_HEIGHT}px;left:0;right:0;border-top:1px solid var(--border);opacity:0.5;`;grid.appendChild(line);}
+      const ds=new Date(day);ds.setHours(0,0,0,0);const de=new Date(day);de.setHours(23,59,59,999);
+      Object.entries(studyBookings).filter(([,b])=>b.startMs<de.getTime()&&b.endMs>ds.getTime()).forEach(([key,b])=>{
+        const sH=Math.max(new Date(b.startMs).getHours()+new Date(b.startMs).getMinutes()/60,HOUR_START);
+        const eH=Math.min(new Date(b.endMs).getHours()+new Date(b.endMs).getMinutes()/60,HOUR_END);
+        const block=document.createElement("div");
+        block.style.cssText=`position:absolute;top:${(sH-HOUR_START)*HOUR_HEIGHT}px;left:1px;right:1px;height:${Math.max((eH-sH)*HOUR_HEIGHT,18)}px;background:${getColor(b.name)};border-radius:4px;padding:2px 3px;overflow:hidden;cursor:pointer;`;
+        block.innerHTML=`<span style="font-size:9px;font-weight:600;color:#3D1A2E;line-height:1.2;">${b.name}</span>`;
+        block.onclick=()=>{if(confirm(`Remove ${b.name}'s booking?`))remove(ref(db,"study/"+key));};
+        grid.appendChild(block);
       });
-    }
+      col.appendChild(grid);wrapper.appendChild(col);
+    });
+    container.appendChild(wrapper);
   }
 
-  function formatBookingTime(startMs, endMs) {
-    const opts = { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" };
-    const start = new Date(startMs).toLocaleString("en-US", opts);
-    const endTime = new Date(endMs).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" });
-    return `${start} – ${endTime}`;
+  function renderDay(container){
+    const today=new Date();today.setHours(0,0,0,0);
+    const day=new Date(today);day.setDate(today.getDate()+calendarDayOffset);
+    const dn=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const lbl=document.getElementById("cal-nav-label");if(lbl)lbl.textContent=`${dn[day.getDay()]}, ${mn[day.getMonth()]} ${day.getDate()}`;
+    const totalH=HOUR_END-HOUR_START,gridH=totalH*HOUR_HEIGHT;
+    const wrapper=document.createElement("div");wrapper.style.cssText="display:flex;";
+    const timeCol=document.createElement("div");timeCol.style.cssText=`flex-shrink:0;width:44px;`;
+    for(let h=HOUR_START;h<HOUR_END;h++){const l=document.createElement("div");l.style.cssText=`height:${HOUR_HEIGHT}px;font-size:10px;color:var(--muted);text-align:right;padding-right:6px;line-height:1;`;l.textContent=h===12?"12pm":h>12?`${h-12}pm`:`${h}am`;timeCol.appendChild(l);}
+    wrapper.appendChild(timeCol);
+    const col=document.createElement("div");col.style.cssText=`flex:1;position:relative;height:${gridH}px;border-left:1px solid var(--border);`;
+    for(let h=0;h<totalH;h++){const line=document.createElement("div");line.style.cssText=`position:absolute;top:${h*HOUR_HEIGHT}px;left:0;right:0;border-top:1px solid var(--border);opacity:0.4;`;col.appendChild(line);}
+    const now=new Date();
+    if(day.getTime()===today.getTime()){const nowH=now.getHours()+now.getMinutes()/60;if(nowH>=HOUR_START&&nowH<HOUR_END){const nl=document.createElement("div");nl.style.cssText=`position:absolute;top:${(nowH-HOUR_START)*HOUR_HEIGHT}px;left:0;right:0;border-top:2px solid var(--blush);z-index:2;`;nl.innerHTML=`<span style="position:absolute;left:-6px;top:-5px;width:10px;height:10px;background:var(--blush);border-radius:50%;"></span>`;col.appendChild(nl);}}
+    const ds=new Date(day);ds.setHours(0,0,0,0);const de=new Date(day);de.setHours(23,59,59,999);
+    Object.entries(studyBookings).filter(([,b])=>b.startMs<de.getTime()&&b.endMs>ds.getTime()).forEach(([key,b])=>{
+      const sH=Math.max(new Date(b.startMs).getHours()+new Date(b.startMs).getMinutes()/60,HOUR_START);
+      const eH=Math.min(new Date(b.endMs).getHours()+new Date(b.endMs).getMinutes()/60,HOUR_END);
+      const sStr=new Date(b.startMs).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+      const eStr=new Date(b.endMs).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+      const block=document.createElement("div");
+      block.style.cssText=`position:absolute;top:${(sH-HOUR_START)*HOUR_HEIGHT}px;left:4px;right:4px;height:${Math.max((eH-sH)*HOUR_HEIGHT,24)}px;background:${getColor(b.name)};border-radius:6px;padding:4px 6px;overflow:hidden;cursor:pointer;z-index:1;`;
+      block.innerHTML=`<div style="font-size:12px;font-weight:600;color:#3D1A2E;">${b.name}</div><div style="font-size:10px;color:#3D1A2E;opacity:0.7;">${sStr} – ${eStr}</div>`;
+      block.onclick=()=>{if(confirm(`Remove ${b.name}'s booking?`))remove(ref(db,"study/"+key));};
+      col.appendChild(block);
+    });
+    wrapper.appendChild(col);container.appendChild(wrapper);
   }
 
-  window.deleteBooking = async (key) => {
-    if (!confirm("Remove this booking?")) return;
-    await remove(ref(db, "study/" + key));
-  };
+  window.calNav=(dir)=>{if(calendarView==="week")calendarWeekOffset+=dir;else calendarDayOffset+=dir;renderCalendar();};
+  window.setCalView=(v)=>{calendarView=v;calendarWeekOffset=0;calendarDayOffset=0;document.getElementById("btn-week").className="cal-toggle-btn"+(v==="week"?" active":"");document.getElementById("btn-day").className="cal-toggle-btn"+(v==="day"?" active":"");renderCalendar();};
 
-  window.openBookingModal = () => {
+  window.openBookingModal=()=>{
     document.getElementById("booking-modal").classList.add("open");
-    const now = new Date();
-    now.setMinutes(Math.ceil(now.getMinutes() / 30) * 30, 0, 0);
-    const end = new Date(now.getTime() + 60 * 60 * 1000);
-    document.getElementById("book-start").value = toDatetimeLocal(now);
-    document.getElementById("book-end").value = toDatetimeLocal(end);
-    document.getElementById("book-name").value = "";
-
-    // Set max date to 1 week from now
-    const maxDate = new Date();
-    maxDate.setDate(maxDate.getDate() + 7);
-    const maxStr = toDatetimeLocal(maxDate);
-    document.getElementById("book-start").max = maxStr;
-    document.getElementById("book-end").max = maxStr;
+    const now=new Date();now.setMinutes(Math.ceil(now.getMinutes()/30)*30,0,0);
+    const end=new Date(now.getTime()+60*60*1000);
+    document.getElementById("book-start").value=toDatetimeLocal(now);
+    document.getElementById("book-end").value=toDatetimeLocal(end);
+    document.getElementById("book-name").value="";
+    const max=new Date();max.setDate(max.getDate()+7);const maxStr=toDatetimeLocal(max);
+    document.getElementById("book-start").max=maxStr;document.getElementById("book-end").max=maxStr;
   };
-
-  window.closeBookingModal = () => {
-    document.getElementById("booking-modal").classList.remove("open");
-  };
-
-  window.submitBooking = async () => {
-    const name = document.getElementById("book-name").value.trim();
-    const startVal = document.getElementById("book-start").value;
-    const endVal = document.getElementById("book-end").value;
-    if (!name || !startVal || !endVal) { alert("Please fill in all fields."); return; }
-    const startMs = new Date(startVal).getTime();
-    const endMs = new Date(endVal).getTime();
-    if (endMs <= startMs) { alert("End time must be after start time."); return; }
-
-    const oneWeekFromNow = Date.now() + 7 * 24 * 60 * 60 * 1000;
-    if (startMs > oneWeekFromNow) { alert("Bookings can only be made up to one week in advance."); return; }
-
-    const conflicts = Object.values(studyBookings).filter(b =>
-      b.endMs > Date.now() && startMs < b.endMs && endMs > b.startMs
-    );
-    if (conflicts.length > 0) { alert("That time overlaps with an existing booking. Please choose another time."); return; }
-
-    await push(ref(db, "study"), { name, startMs, endMs });
+  window.closeBookingModal=()=>{document.getElementById("booking-modal").classList.remove("open");};
+  window.submitBooking=async()=>{
+    const name=document.getElementById("book-name").value.trim();
+    const startMs=new Date(document.getElementById("book-start").value).getTime();
+    const endMs=new Date(document.getElementById("book-end").value).getTime();
+    if(!name||!startMs||!endMs){alert("Please fill in all fields.");return;}
+    if(endMs<=startMs){alert("End time must be after start time.");return;}
+    if(startMs>Date.now()+7*24*60*60*1000){alert("Bookings can only be made up to one week in advance.");return;}
+    if(Object.values(studyBookings).some(b=>b.endMs>Date.now()&&startMs<b.endMs&&endMs>b.startMs)){alert("That time overlaps with an existing booking.");return;}
+    await push(ref(db,"study"),{name,startMs,endMs});
     window.closeBookingModal();
   };
 
-  function toDatetimeLocal(d) {
-    const pad = n => n.toString().padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
+  function toDatetimeLocal(d){const p=n=>n.toString().padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;}
 
-  window.showView = showView;
-  window.addEventListener("DOMContentLoaded", () => {
-    showView("home");
-    listenLaundry();
-    listenStudy();
-    setInterval(() => renderStudy(), 60000);
-  });
+  window.showView=showView;
+  window.addEventListener("DOMContentLoaded",()=>{showView("home");listenLaundry();listenStudy();listenNote();setInterval(()=>{renderStudyStatus();renderCalendar();},60000);});
 </script>
 
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #F5EEED; --plum: #3D1A2E; --blush: #C9A0A0; --white: #FFFFFF;
-    --sage: #7A9E7E; --text: #3D1A2E; --muted: #8C6C7A; --border: #DFC8C8;
-    --radius: 14px; --shadow: 0 2px 12px rgba(61,26,46,0.07);
-  }
-  body { font-family: "Inter", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; max-width: 480px; margin: 0 auto; }
-
-  .topnav { display: flex; align-items: center; gap: 12px; padding: 20px 20px 10px; position: sticky; top: 0; background: var(--bg); z-index: 10; }
-  #back-btn { display: none; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--white); cursor: pointer; font-size: 16px; color: var(--plum); flex-shrink: 0; }
-  #page-title { font-family: "DM Serif Display", serif; font-size: 22px; color: var(--plum); }
-
-  .view { display: none; padding: 0 16px 40px; }
-  .view.active { display: block; }
-
-  /* HOME */
-  .home-intro { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
-  .room-card { background: var(--white); border-radius: var(--radius); padding: 22px 20px; margin-bottom: 14px; box-shadow: var(--shadow); cursor: pointer; border: 1.5px solid transparent; position: relative; overflow: hidden; transition: transform 0.12s; }
-  .room-card:active { transform: scale(0.98); }
-  .room-card::before { content: ""; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--blush); border-radius: 4px 0 0 4px; }
-  .room-card.study-card::before { background: var(--sage); }
-  .room-card-title { font-family: "DM Serif Display", serif; font-size: 24px; color: var(--plum); margin-bottom: 4px; }
-  .room-card-sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
-  .room-card-arrow { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--border); }
-  .home-availability { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
-  .home-availability::before { content: ""; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-  .avail-all { background: #EAF4EB; color: #3D6B42; } .avail-all::before { background: var(--sage); }
-  .avail-some { background: #FFF6E8; color: #8B6020; } .avail-some::before { background: #E0A040; }
-  .avail-none { background: #F9EAEA; color: #8B3535; } .avail-none::before { background: var(--blush); }
-
-  /* FLOOR PLAN */
-  .room-shell {
-    background: var(--white);
-    border-radius: 16px;
-    border: 2px solid var(--border);
-    padding: 12px;
-    position: relative;
-    margin-bottom: 8px;
-  }
-  .wall-label {
-    text-align: center;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--muted);
-    padding: 6px 0 10px;
-    border-bottom: 2px dashed var(--border);
-    margin-bottom: 12px;
-  }
-  .door-label {
-    text-align: center;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--muted);
-    padding: 10px 0 4px;
-    border-top: 2px dashed var(--border);
-    margin-top: 12px;
-  }
-  .floor-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .floor-tile {
-    border-radius: 12px;
-    padding: 12px 10px;
-    border: 2px solid var(--border);
-    text-align: center;
-    transition: border-color 0.2s;
-  }
-  .tile-free { background: #F2FAF3; border-color: #C8DFCA; }
-  .tile-busy { background: #FDF4F4; border-color: #DFC8C8; }
-  .tile-label { font-size: 12px; font-weight: 600; color: var(--plum); margin-bottom: 8px; }
-  .tile-timer { position: relative; width: 52px; height: 52px; margin: 0 auto 4px; }
-  .tile-timer svg { position: absolute; top: 0; left: 0; }
-  .tile-countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--plum); }
-  .tile-by { font-size: 11px; color: var(--muted); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile-done { font-size: 11px; font-weight: 600; color: var(--plum); margin-bottom: 8px; }
-  .tile-btn { width: 100%; padding: 7px 0; border-radius: 8px; font-size: 12px; font-weight: 600; font-family: "Inter", sans-serif; cursor: pointer; border: none; }
-  .tile-btn-primary { background: var(--plum); color: var(--white); }
-  .tile-btn-ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--border); }
-
-  /* STATUS BAR */
-  .status-bar { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 10px; font-size: 13px; font-weight: 500; margin-bottom: 14px; }
-  .status-bar.free { background: #EAF4EB; color: #3D6B42; }
-  .status-bar.busy { background: #F9EAEA; color: #8B3535; }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
-  .dot-free { background: var(--sage); }
-  .dot-busy { background: var(--blush); }
-
-  /* STUDY */
-  .section-label { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; margin-top: 20px; }
-  .booking-row { display: flex; align-items: center; justify-content: space-between; background: var(--white); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow); border: 1.5px solid var(--border); }
-  .booking-row.booking-active { border-color: var(--blush); background: #FDF4F4; }
-  .booking-info { display: flex; flex-direction: column; gap: 3px; }
-  .booking-name { font-weight: 600; font-size: 14px; }
-  .booking-time { font-size: 12px; color: var(--muted); }
-  .btn-icon { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px; border-radius: 6px; }
-  .empty-state { font-size: 13px; color: var(--muted); text-align: center; padding: 28px 0; }
-  .btn-blush { background: var(--blush); color: var(--white); width: 100%; padding: 14px; font-size: 14px; font-weight: 600; border-radius: 12px; border: none; cursor: pointer; margin-top: 14px; font-family: "Inter", sans-serif; }
-
-  /* MODAL */
-  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(61,26,46,0.4); z-index: 100; align-items: flex-end; justify-content: center; }
-  .modal-overlay.open { display: flex; }
-  .modal { background: var(--white); border-radius: 22px 22px 0 0; padding: 26px 22px 40px; width: 100%; max-width: 480px; }
-  .modal-title { font-family: "DM Serif Display", serif; font-size: 21px; color: var(--plum); margin-bottom: 18px; }
-  .form-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-  .form-field label { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); }
-  .form-field input { border: 1.5px solid var(--border); border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: "Inter", sans-serif; color: var(--text); background: var(--bg); outline: none; }
-  .form-field input:focus { border-color: var(--blush); }
-  .modal-hint { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
-  .btn-cancel { flex: 1; padding: 13px; border-radius: 12px; background: none; border: 1.5px solid var(--border); font-size: 14px; font-weight: 600; color: var(--muted); font-family: "Inter", sans-serif; cursor: pointer; }
-  .btn-confirm { flex: 2; padding: 13px; border-radius: 12px; background: var(--plum); border: none; font-size: 14px; font-weight: 600; color: var(--white); font-family: "Inter", sans-serif; cursor: pointer; }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{--bg:#F5EEED;--plum:#3D1A2E;--blush:#C9A0A0;--white:#FFFFFF;--sage:#7A9E7E;--text:#3D1A2E;--muted:#8C6C7A;--border:#DFC8C8;--radius:14px;--shadow:0 2px 12px rgba(61,26,46,0.07);}
+  body{font-family:"Inter",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;max-width:480px;margin:0 auto;}
+  .topnav{display:flex;align-items:center;gap:12px;padding:20px 20px 10px;position:sticky;top:0;background:var(--bg);z-index:10;}
+  #back-btn{display:none;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:16px;color:var(--plum);flex-shrink:0;}
+  #page-title{font-family:"DM Serif Display",serif;font-size:22px;color:var(--plum);}
+  .view{display:none;padding:0 16px 40px;}.view.active{display:block;}
+  .home-intro{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;}
+  .room-card{background:var(--white);border-radius:var(--radius);padding:22px 20px;margin-bottom:14px;box-shadow:var(--shadow);cursor:pointer;border:1.5px solid transparent;position:relative;overflow:hidden;transition:transform 0.12s;}
+  .room-card:active{transform:scale(0.98);}
+  .room-card::before{content:"";position:absolute;top:0;left:0;width:4px;height:100%;background:var(--blush);border-radius:4px 0 0 4px;}
+  .room-card.study-card::before{background:var(--sage);}
+  .room-card-title{font-family:"DM Serif Display",serif;font-size:24px;color:var(--plum);margin-bottom:4px;}
+  .room-card-sub{font-size:12px;color:var(--muted);margin-bottom:10px;}
+  .room-card-arrow{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:20px;color:var(--border);}
+  .home-availability{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;}
+  .home-availability::before{content:"";width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .avail-all{background:#EAF4EB;color:#3D6B42;}.avail-all::before{background:var(--sage);}
+  .avail-some{background:#FFF6E8;color:#8B6020;}.avail-some::before{background:#E0A040;}
+  .avail-none{background:#F9EAEA;color:#8B3535;}.avail-none::before{background:var(--blush);}
+  .room-shell{background:var(--white);border-radius:16px;border:2px solid var(--border);padding:12px;margin-bottom:8px;}
+  .wall-label{text-align:center;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:6px 0 10px;border-bottom:2px dashed var(--border);margin-bottom:12px;}
+  .door-label{text-align:center;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:10px 0 4px;border-top:2px dashed var(--border);margin-top:12px;}
+  .floor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .floor-tile{border-radius:12px;padding:12px 10px;border:2px solid var(--border);text-align:center;}
+  .tile-free{background:#F2FAF3;border-color:#C8DFCA;}.tile-busy{background:#FDF4F4;border-color:#DFC8C8;}
+  .tile-label{font-size:12px;font-weight:600;color:var(--plum);margin-bottom:8px;}
+  .tile-timer{position:relative;width:52px;height:52px;margin:0 auto 4px;}
+  .tile-timer svg{position:absolute;top:0;left:0;}
+  .tile-countdown{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;font-weight:600;color:var(--plum);}
+  .tile-by{font-size:11px;color:var(--muted);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tile-done{font-size:11px;font-weight:600;color:var(--plum);margin-bottom:8px;}
+  .tile-btn{width:100%;padding:7px 0;border-radius:8px;font-size:12px;font-weight:600;font-family:"Inter",sans-serif;cursor:pointer;border:none;}
+  .tile-btn-primary{background:var(--plum);color:var(--white);}.tile-btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border);}
+  .status-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:14px;}
+  .status-bar.free{background:#EAF4EB;color:#3D6B42;}.status-bar.busy{background:#F9EAEA;color:#8B3535;}
+  .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block;}
+  .dot-free{background:var(--sage);}.dot-busy{background:var(--blush);}
+  .note-bar{display:flex;align-items:center;gap:8px;background:#FFF8E7;border:1.5px solid #E0C87A;border-radius:10px;padding:10px 14px;margin-bottom:12px;cursor:pointer;}
+  .note-text{flex:1;font-size:13px;font-weight:500;color:#6B5000;}.note-edit{font-size:11px;color:#8B6020;font-weight:600;}
+  .quick-row{display:flex;gap:8px;margin-bottom:14px;}
+  .quick-btn{flex:1;padding:10px 8px;border-radius:10px;border:1.5px solid var(--border);background:var(--white);font-size:12px;font-weight:600;color:var(--plum);font-family:"Inter",sans-serif;cursor:pointer;}
+  .quick-btn-note{background:#FFF8E7;border-color:#E0C87A;color:#6B5000;}
+  .cal-controls{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .cal-toggle{display:flex;background:var(--white);border-radius:10px;border:1.5px solid var(--border);overflow:hidden;}
+  .cal-toggle-btn{padding:7px 16px;font-size:13px;font-weight:600;font-family:"Inter",sans-serif;border:none;background:transparent;color:var(--muted);cursor:pointer;}
+  .cal-toggle-btn.active{background:var(--plum);color:var(--white);}
+  .cal-nav{display:flex;align-items:center;gap:8px;}
+  .cal-nav-btn{background:var(--white);border:1.5px solid var(--border);border-radius:8px;width:28px;height:28px;font-size:16px;cursor:pointer;color:var(--plum);display:flex;align-items:center;justify-content:center;}
+  .cal-nav-label{font-size:12px;font-weight:600;color:var(--plum);min-width:100px;text-align:center;}
+  .cal-wrap{background:var(--white);border-radius:14px;border:1.5px solid var(--border);overflow:hidden;margin-bottom:4px;max-height:420px;overflow-y:auto;}
+  .btn-blush{background:var(--blush);color:var(--white);width:100%;padding:14px;font-size:14px;font-weight:600;border-radius:12px;border:none;cursor:pointer;margin-top:14px;font-family:"Inter",sans-serif;}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(61,26,46,0.4);z-index:100;align-items:flex-end;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--white);border-radius:22px 22px 0 0;padding:26px 22px 40px;width:100%;max-width:480px;}
+  .modal-title{font-family:"DM Serif Display",serif;font-size:21px;color:var(--plum);margin-bottom:18px;}
+  .form-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-field label{font-size:11px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:var(--muted);}
+  .form-field input{border:1.5px solid var(--border);border-radius:10px;padding:11px 13px;font-size:14px;font-family:"Inter",sans-serif;color:var(--text);background:var(--bg);outline:none;}
+  .form-field input:focus{border-color:var(--blush);}
+  .modal-hint{font-size:11px;color:var(--muted);margin-bottom:4px;}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;}
+  .btn-cancel{flex:1;padding:13px;border-radius:12px;background:none;border:1.5px solid var(--border);font-size:14px;font-weight:600;color:var(--muted);font-family:"Inter",sans-serif;cursor:pointer;}
+  .btn-confirm{flex:2;padding:13px;border-radius:12px;background:var(--plum);border:none;font-size:14px;font-weight:600;color:var(--white);font-family:"Inter",sans-serif;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -408,7 +334,6 @@
   <span id="page-title">House System</span>
 </nav>
 
-<!-- HOME -->
 <div id="view-home" class="view">
   <p class="home-intro">Tap a room to check availability, claim a machine, or book time.</p>
   <div class="room-card" onclick="showView('laundry')">
@@ -425,7 +350,6 @@
   </div>
 </div>
 
-<!-- LAUNDRY -->
 <div id="view-laundry" class="view">
   <div class="room-shell">
     <div class="wall-label">Back Wall</div>
@@ -434,17 +358,51 @@
   </div>
 </div>
 
-<!-- STUDY -->
 <div id="view-study" class="view">
+  <div id="study-note-bar" class="note-bar" style="display:none;" onclick="openNoteModal()">
+    <span style="font-size:16px;">📌</span>
+    <span id="study-note-text" class="note-text"></span>
+    <span class="note-edit">Edit</span>
+  </div>
   <div id="study-status-bar" class="status-bar free">
     <span class="status-dot dot-free"></span> Room is open
   </div>
-  <p class="section-label">Upcoming Reservations</p>
-  <div id="study-bookings-list"></div>
+  <div class="quick-row">
+    <button class="quick-btn" onclick="quickCheckin()">👋 I'm in here now</button>
+    <button class="quick-btn quick-btn-note" onclick="openNoteModal()">📌 Leave a note</button>
+  </div>
+  <div class="cal-controls">
+    <div class="cal-toggle">
+      <button id="btn-week" class="cal-toggle-btn active" onclick="setCalView('week')">Week</button>
+      <button id="btn-day" class="cal-toggle-btn" onclick="setCalView('day')">Day</button>
+    </div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="calNav(-1)">‹</button>
+      <span id="cal-nav-label" class="cal-nav-label"></span>
+      <button class="cal-nav-btn" onclick="calNav(1)">›</button>
+    </div>
+  </div>
+  <div class="cal-wrap">
+    <div id="calendar-body"></div>
+  </div>
   <button class="btn-blush" onclick="openBookingModal()">+ Reserve the Room</button>
 </div>
 
-<!-- BOOKING MODAL -->
+<div id="note-modal" class="modal-overlay" onclick="if(event.target===this)closeNoteModal()">
+  <div class="modal">
+    <div class="modal-title">Leave a note</div>
+    <p class="modal-hint">Everyone can see this. Use it to say you're on a call, in a meeting, etc.</p>
+    <div class="form-field">
+      <label>Note</label>
+      <input type="text" id="note-input" placeholder="e.g. On a call, do not disturb" autocomplete="off"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="clearNote()">Clear note</button>
+      <button class="btn-confirm" onclick="saveNote()">Post note</button>
+    </div>
+  </div>
+</div>
+
 <div id="booking-modal" class="modal-overlay" onclick="if(event.target===this)closeBookingModal()">
   <div class="modal">
     <div class="modal-title">Reserve the Study Room</div>
